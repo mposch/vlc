@@ -2,7 +2,6 @@
 * VLCSimplePrefsController.m: Simple Preferences for Mac OS X
 *****************************************************************************
 * Copyright (C) 2008-2014 VLC authors and VideoLAN
-* $Id$
 *
 * Authors: Felix Paul Kühne <fkuehne at videolan dot org>
 *
@@ -36,7 +35,6 @@
 #import "misc.h"
 #import "VLCMain.h"
 #import "VLCMain+OldPrefs.h"
-#import "AppleRemote.h"
 #import "VLCCoreInteraction.h"
 #import "NSScreen+VLCAdditions.h"
 
@@ -836,7 +834,7 @@ static inline const char * __config_GetLabel(vlc_object_t *p_this, const char *p
                 exit(0);
                 return;
             }
-            execl(path, path, NULL);
+            execl(path, path, (char *)NULL);
         }
     }];
 }
@@ -912,12 +910,6 @@ static inline void save_string_list(intf_thread_t * p_intf, id object, const cha
 
         SaveIntList(_intf_pauseitunesPopup, "macosx-control-itunes");
         SaveIntList(_intf_continueplaybackPopup, "macosx-continue-playback");
-
-        /* activate stuff without restart */
-        if ([_intf_appleremoteCheckbox state] == YES)
-            [[VLCCoreInteraction sharedInstance] startListeningWithAppleRemote];
-        else
-            [[VLCCoreInteraction sharedInstance] stopListeningWithAppleRemote];
         _intfSettingChanged = NO;
     }
 
@@ -1037,13 +1029,15 @@ static inline void save_string_list(intf_thread_t * p_intf, id object, const cha
         _hotkeyChanged = NO;
     }
 
-    [[VLCCoreInteraction sharedInstance] fixIntfSettings];
+    fixIntfSettings();
 
     /* okay, let's save our changes to vlcrc */
     config_SaveConfigFile(p_intf);
 
-    [[NSNotificationCenter defaultCenter] postNotificationName:VLCMediaKeySupportSettingChangedNotification object:nil];
-    [[NSNotificationCenter defaultCenter] postNotificationName:VLCConfigurationChangedNotification object:nil];
+    NSNotificationCenter *notificationCenter = [NSNotificationCenter defaultCenter];
+    [notificationCenter postNotificationName:VLCMediaKeySupportSettingChangedNotification object:nil];
+    [notificationCenter postNotificationName:VLCConfigurationChangedNotification object:nil];
+    [notificationCenter postNotificationName:VLCAppleRemoteSettingChangedNotification object:nil];
 }
 
 - (void)showSettingsForCategory:(NSView *)categoryView
@@ -1359,7 +1353,7 @@ static inline void save_string_list(intf_thread_t * p_intf, id object, const cha
     if (sender == _hotkeys_changeButton || sender == _hotkeys_listbox) {
         [_hotkeys_changeLabel setStringValue: [NSString stringWithFormat: _NS("Press new keys for\n\"%@\""),
                                                [_hotkeyDescriptions objectAtIndex:[_hotkeys_listbox selectedRow]]]];
-        [_hotkeys_change_keysLabel setStringValue: [[VLCStringUtility sharedInstance] OSXStringKeyToString:[_hotkeySettings objectAtIndex:[_hotkeys_listbox selectedRow]]]];
+        [_hotkeys_change_keysLabel setStringValue: OSXStringKeyToString([_hotkeySettings objectAtIndex:[_hotkeys_listbox selectedRow]])];
         [_hotkeys_change_takenLabel setStringValue: @""];
         [_hotkeys_change_win setInitialFirstResponder: [_hotkeys_change_win contentView]];
         [_hotkeys_change_win makeFirstResponder: [_hotkeys_change_win contentView]];
@@ -1417,7 +1411,7 @@ static inline void save_string_list(intf_thread_t * p_intf, id object, const cha
     if ([identifier isEqualToString: @"action"])
         return [_hotkeyDescriptions objectAtIndex:rowIndex];
     else if ([identifier isEqualToString: @"shortcut"])
-        return [[VLCStringUtility sharedInstance] OSXStringKeyToString:[_hotkeySettings objectAtIndex:rowIndex]];
+        return OSXStringKeyToString([_hotkeySettings objectAtIndex:rowIndex]);
     else {
         msg_Err(p_intf, "unknown TableColumn identifier (%s)!", [identifier UTF8String]);
         return NULL;
@@ -1435,7 +1429,7 @@ static inline void save_string_list(intf_thread_t * p_intf, id object, const cha
         [_hotkeys_change_okButton setEnabled: NO];
         return NO;
     } else {
-        [_hotkeys_change_keysLabel setStringValue: [[VLCStringUtility sharedInstance] OSXStringKeyToString:theKey]];
+        [_hotkeys_change_keysLabel setStringValue: OSXStringKeyToString(theKey)];
 
         i_returnValue = [_hotkeySettings indexOfObject: theKey];
         i_returnValue2 = [_hotkeySettings indexOfObject: [theKey stringByReplacingOccurrencesOfString:@"-" withString:@"+"]];

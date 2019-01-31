@@ -1,14 +1,14 @@
 /*****************************************************************************
  * NSString+Helpers.h: Category with helper functions for NSStrings
  *****************************************************************************
- * Copyright (C) 2002-2018 VLC authors and VideoLAN
- * $Id$
+ * Copyright (C) 2002-2019 VLC authors and VideoLAN
  *
  * Authors: Jon Lech Johansen <jon-vl@nanocrew.net>
  *          Christophe Massiot <massiot@via.ecp.fr>
  *          Derk-Jan Hartman <hartman at videolan dot org>
  *          Felix Paul Kühne <fkuehne at videolan dot org>
  *          Marvin Scholz <epirat07@gmail.com>
+ *          David Fuhrmann <dfuhrmann # videolan.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,8 +25,41 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301, USA.
  *****************************************************************************/
 
-#import <Foundation/Foundation.h>
+#import <Cocoa/Cocoa.h>
 #import <vlc_input.h>
+
+#define _NS(s) ((s) ? toNSStr(vlc_gettext(s)) : @"")
+
+/* Get an alternate version of the string.
+ * This string is stored as '1:string' but when displayed it only displays
+ * the translated string. the translation should be '1:translatedstring' though */
+#define _ANS(s) [((s) ? toNSStr(vlc_gettext(s)) : @"") substringFromIndex:2]
+
+extern NSString *const kVLCMediaAudioCD;
+extern NSString *const kVLCMediaDVD;
+extern NSString *const kVLCMediaVCD;
+extern NSString *const kVLCMediaSVCD;
+extern NSString *const kVLCMediaBD;
+extern NSString *const kVLCMediaVideoTSFolder;
+extern NSString *const kVLCMediaBDMVFolder;
+extern NSString *const kVLCMediaUnknown;
+
+NSString *toNSStr(const char *str);
+
+/**
+ * Takes the first value of an cocoa key string, and converts it to VLCs int representation.
+ */
+unsigned int CocoaKeyToVLC(unichar i_key);
+
+/**
+ * Fix certain settings strings before saving
+ */
+bool fixIntfSettings(void);
+
+/**
+ * Gets an image resource
+ */
+NSImage *imageFromRes(NSString *name);
 
 @interface NSString (Helpers)
 
@@ -50,6 +83,16 @@
  \param time   Time in seconds
  */
 + (instancetype)stringWithTime:(long long int)time;
+
+/**
+ Creates an NSString with the given time in VLC ticks
+
+ This method allocates and initializes an NSString with the given
+ time formatted as displayable time
+
+ \param time   Time in VLC ticks
+ */
++ (instancetype)stringWithTimeFromTicks:(vlc_tick_t)time;
 
 /**
  Creates an NSString from the given null-terminated C string
@@ -117,3 +160,24 @@ static inline NSString *B64EncAndFree(char *cs) {
 
     return (res == nil) ? @"" : res;
 }
+
+NSString * getVolumeTypeFromMountPath(NSString *mountPath);
+
+NSString * getBSDNodeFromMountPath(NSString *mountPath);
+
+/**
+ * Converts VLC key string to a prettified version, for hotkey settings.
+ * The returned string adapts similar how its done within the cocoa framework when setting this
+ * key to menu items.
+ */
+NSString * OSXStringKeyToString(NSString *theString);
+
+/**
+ * Converts VLC key string to cocoa modifiers which can be used as setKeyEquivalent for menu items
+ */
+NSString * VLCKeyToString(NSString *theString);
+
+/**
+ * Converts VLC key to cocoa string which can be used as setKeyEquivalentModifierMask for menu items
+ */
+unsigned int VLCModifiersToCocoa(NSString *theString);

@@ -38,6 +38,8 @@ libmacosx_plugin_la_SOURCES = \
 	gui/macosx/VLCMainWindowControlsBar.m gui/macosx/VLCMainWindowControlsBar.h \
 	gui/macosx/VLCConvertAndSaveWindowController.h gui/macosx/VLCConvertAndSaveWindowController.m \
 	gui/macosx/VLCCoreInteraction.h gui/macosx/VLCCoreInteraction.m \
+	gui/macosx/VLCClickerManager.h gui/macosx/VLCClickerManager.m \
+	gui/macosx/VLCVideoFilterHelper.h gui/macosx/VLCVideoFilterHelper.m \
 	gui/macosx/VLCErrorWindowController.h gui/macosx/VLCErrorWindowController.m \
 	gui/macosx/VLCExtensionsDialogProvider.h gui/macosx/VLCExtensionsDialogProvider.m \
 	gui/macosx/VLCExtensionsManager.h gui/macosx/VLCExtensionsManager.m \
@@ -68,7 +70,6 @@ libmacosx_plugin_la_SOURCES = \
 	gui/macosx/VLCHotkeyChangeWindow.h gui/macosx/VLCHotkeyChangeWindow.m \
 	gui/macosx/SPMediaKeyTap.h gui/macosx/SPMediaKeyTap.m \
 	gui/macosx/Spotify.h \
-	gui/macosx/VLCStringUtility.h gui/macosx/VLCStringUtility.m \
 	gui/macosx/VLCVoutView.h gui/macosx/VLCVoutView.m \
 	gui/macosx/VLCTimeSelectionPanelController.h gui/macosx/VLCTimeSelectionPanelController.m \
 	gui/macosx/VLCUIWidgets.h gui/macosx/VLCUIWidgets.m \
@@ -89,6 +90,16 @@ libmacosx_plugin_la_SOURCES = \
 	gui/macosx/VLCInputManager.h gui/macosx/VLCInputManager.m \
 	gui/macosx/VLCRemoteControlService.h gui/macosx/VLCRemoteControlService.m \
 	gui/macosx/VLCMainWindow.h gui/macosx/VLCMainWindow.m \
+	gui/macosx/VLCLibraryWindow.h gui/macosx/VLCLibraryWindow.m \
+	gui/macosx/VLCPlaylistController.h gui/macosx/VLCPlaylistController.m \
+	gui/macosx/VLCPlaylistDataSource.h gui/macosx/VLCPlaylistDataSource.m \
+	gui/macosx/VLCPlaylistItem.h gui/macosx/VLCPlaylistItem.m \
+	gui/macosx/VLCPlaylistMenuController.h gui/macosx/VLCPlaylistMenuController.m \
+	gui/macosx/VLCPlaylistModel.h gui/macosx/VLCPlaylistModel.m \
+	gui/macosx/VLCPlaylistTableCellView.h gui/macosx/VLCPlaylistTableCellView.m \
+	gui/macosx/VLCPlaylistTableView.h gui/macosx/VLCPlaylistTableView.m \
+	gui/macosx/VLCLibraryCollectionViewItem.h gui/macosx/VLCLibraryCollectionViewItem.m \
+	gui/macosx/VLCDetachedVideoWindow.h gui/macosx/VLCDetachedVideoWindow.m \
 	gui/macosx/VLCRendererDiscovery.h gui/macosx/VLCRendererDiscovery.m \
 	gui/macosx/VLCRendererItem.h gui/macosx/VLCRendererItem.m \
 	gui/macosx/VLCRendererMenuController.h gui/macosx/VLCRendererMenuController.m \
@@ -146,6 +157,10 @@ libmacosx_plugin_la_XIB_SOURCES = \
 	gui/macosx/UI/LogMessageWindow.xib \
 	gui/macosx/UI/MainMenu.xib \
 	gui/macosx/UI/MainWindow.xib \
+	gui/macosx/UI/VLCLibraryWindow.xib \
+	gui/macosx/UI/VLCPlaylistMenu.xib \
+	gui/macosx/UI/VLCPlaylistTableCellView.xib \
+	gui/macosx/UI/VLCLibraryCollectionViewItem.xib \
 	gui/macosx/UI/MediaInfo.xib \
 	gui/macosx/UI/Open.xib \
 	gui/macosx/UI/PlaylistAccessoryView.xib \
@@ -193,6 +208,8 @@ libmacosx_plugin_la_RES = \
 	gui/macosx/Resources/File-Icons/wav.icns \
 	gui/macosx/Resources/File-Icons/wma.icns \
 	gui/macosx/Resources/File-Icons/wmv.icns \
+	gui/macosx/Resources/librarywindow/libraryCellGradient@1x.png \
+	gui/macosx/Resources/librarywindow/libraryCellGradient@2x.png \
 	gui/macosx/Resources/mainwindow/backward-3btns-pressed.png \
 	gui/macosx/Resources/mainwindow/backward-3btns-pressed@2x.png \
 	gui/macosx/Resources/mainwindow/backward-3btns.png \

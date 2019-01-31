@@ -2,7 +2,6 @@
  * VLCMain.m: MacOS X interface module
  *****************************************************************************
  * Copyright (C) 2002-2016 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Derk-Jan Hartman <hartman at videolan.org>
  *          Felix Paul Kühne <fkuehne at videolan dot org>
@@ -61,6 +60,8 @@
 #import "VLCResumeDialogController.h"
 #import "VLCLogWindowController.h"
 #import "VLCConvertAndSaveWindowController.h"
+#import "VLCLibraryWindow.h"
+#import "VLCPlaylistController.h"
 
 #import "VLCVideoEffectsWindowController.h"
 #import "VLCAudioEffectsWindowController.h"
@@ -170,7 +171,6 @@ static int ShowController(vlc_object_t *p_this, const char *psz_variable,
     VLCOpenWindowController *_open;
     VLCCoreDialogProvider *_coredialogs;
     VLCBookmarksWindowController *_bookmarks;
-    VLCCoreInteraction *_coreinteraction;
     VLCResumeDialogController *_resume_dialog;
     VLCInputManager *_input_manager;
     VLCPlaylist *_playlist;
@@ -182,6 +182,7 @@ static int ShowController(vlc_object_t *p_this, const char *psz_variable,
     VLCConvertAndSaveWindowController *_convertAndSaveWindow;
     VLCExtensionsManager *_extensionsManager;
     VLCInfo *_currentMediaInfoPanel;
+    VLCLibraryWindowController *_libraryWindowController;
 
     bool b_intf_terminating; /* Makes sure applicationWillTerminate will be called only once */
 }
@@ -221,6 +222,7 @@ static VLCMain *sharedInstance = nil;
 
         [VLCApplication sharedApplication].delegate = self;
 
+        _playlistController = [[VLCPlaylistController alloc] init];
         _input_manager = [[VLCInputManager alloc] initWithMain:self];
 
         // first initalize extensions dialog provider, then core dialog
@@ -235,6 +237,7 @@ static VLCMain *sharedInstance = nil;
         _playlist = [[VLCPlaylist alloc] init];
 
         _mainWindowController = [[NSWindowController alloc] initWithWindowNibName:@"MainWindow"];
+        _libraryWindowController = [[VLCLibraryWindowController alloc] initWithLibraryWindow];
 
         var_AddCallback(pl_Get(p_intf), "intf-toggle-fscontrol", ShowController, (__bridge void *)self);
         var_AddCallback(pl_Get(p_intf), "intf-show", ShowController, (__bridge void *)self);
@@ -275,8 +278,6 @@ static VLCMain *sharedInstance = nil;
 
 - (void)applicationWillFinishLaunching:(NSNotification *)aNotification
 {
-    _coreinteraction = [VLCCoreInteraction sharedInstance];
-
 #ifdef HAVE_SPARKLE
     [[SUUpdater sharedUpdater] setDelegate:self];
 #endif
@@ -289,7 +290,7 @@ static VLCMain *sharedInstance = nil;
     if (!p_intf)
         return;
 
-    [_coreinteraction updateCurrentlyUsedHotkeys];
+    [[VLCCoreInteraction sharedInstance] updateCurrentlyUsedHotkeys];
 
     [self migrateOldPreferences];
 
@@ -364,8 +365,7 @@ static VLCMain *sharedInstance = nil;
 - (void)updater:(SUUpdater *)updater willInstallUpdate:(SUAppcastItem *)update
 {
     [NSApp activateIgnoringOtherApps:YES];
-    [_coreinteraction stopListeningWithAppleRemote];
-    [_coreinteraction stop];
+    [[VLCCoreInteraction sharedInstance] stop];
 }
 
 /* don't be enthusiastic about an update if we currently play a video */
@@ -381,26 +381,10 @@ static VLCMain *sharedInstance = nil;
 #pragma mark -
 #pragma mark Other notification
 
-/* Listen to the remote in exclusive mode, only when VLC is the active
-   application */
-- (void)applicationDidBecomeActive:(NSNotification *)aNotification
-{
-    if (!p_intf)
-        return;
-    if (var_InheritBool(p_intf, "macosx-appleremote") == YES)
-        [_coreinteraction startListeningWithAppleRemote];
-}
-- (void)applicationDidResignActive:(NSNotification *)aNotification
-{
-    if (!p_intf)
-        return;
-    [_coreinteraction stopListeningWithAppleRemote];
-}
-
 /* Triggered when the computer goes to sleep */
 - (void)computerWillSleep: (NSNotification *)notification
 {
-    [_coreinteraction pause];
+    [[VLCCoreInteraction sharedInstance] pause];
 }
 
 #pragma mark -
@@ -484,6 +468,11 @@ static VLCMain *sharedInstance = nil;
 - (VLCMainWindow *)mainWindow
 {
     return (VLCMainWindow *)[_mainWindowController window];
+}
+
+- (VLCLibraryWindowController *)libraryWindowController
+{
+    return _libraryWindowController;
 }
 
 - (VLCInputManager *)inputManager

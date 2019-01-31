@@ -1,8 +1,7 @@
 /*****************************************************************************
  * VLCOpenWindowController.m: Open dialogues for VLC's MacOS X port
  *****************************************************************************
- * Copyright (C) 2002-2015 VLC authors and VideoLAN
- * $Id$
+ * Copyright (C) 2002-2019 VLC authors and VideoLAN
  *
  * Authors: Jon Lech Johansen <jon-vl@nanocrew.net>
  *          Christophe Massiot <massiot@via.ecp.fr>
@@ -108,14 +107,14 @@ static NSString *kCaptureTabViewId  = @"capture";
 - (id)init
 {
     self = [super initWithWindowNibName:@"Open"];
-
     return self;
 }
 
 
 - (void)dealloc
 {
-    for (int i = 0; i < [_displayInfos count]; i ++) {
+    NSUInteger displayInfoCount = [_displayInfos count];
+    for (int i = 0; i < displayInfoCount; i ++) {
         NSValue *v = [_displayInfos objectAtIndex:i];
         free([v pointerValue]);
     }
@@ -214,12 +213,6 @@ static NSString *kCaptureTabViewId  = @"capture";
     [_screenFollowMouseCheckbox setTitle: _NS("Follow the mouse")];
     [_screenqtkAudioCheckbox setTitle: _NS("Capture Audio")];
 
-#warning QTKit stuff is deprecated and broken!
-    /* The QTKit audio capture does not work anymore since 3.x, it has to be
-     * replaced with AVFoundation audio capture stuff and things have to be
-     * changed here to not try to use the qtkit module anymore.
-     */
-
     // setup start / stop time fields
     [_fileStartTimeTextField setFormatter:[[PositionFormatter alloc] init]];
     [_fileStopTimeTextField setFormatter:[[PositionFormatter alloc] init]];
@@ -227,7 +220,7 @@ static NSString *kCaptureTabViewId  = @"capture";
     // Auto collapse MRL field
     self.mrlViewHeightConstraint.constant = 0;
 
-    [self updateQTKVideoDevices];
+    [self updateVideoDevices];
     [_qtkVideoDevicePopup removeAllItems];
     msg_Dbg(getIntf(), "Found %lu video capture devices", _avvideoDevices.count);
 
@@ -252,7 +245,7 @@ static NSString *kCaptureTabViewId  = @"capture";
     [_qtkAudioDevicePopup removeAllItems];
     [_screenqtkAudioPopup removeAllItems];
 
-    [self updateQTKAudioDevices];
+    [self updateAudioDevices];
     msg_Dbg(getIntf(), "Found %lu audio capture devices", _avaudioDevices.count);
 
     if (_avaudioDevices.count >= 1) {
@@ -281,43 +274,45 @@ static NSString *kCaptureTabViewId  = @"capture";
 
     [self setSubPanel];
 
-    [[NSNotificationCenter defaultCenter] addObserver: self
-                                             selector: @selector(openNetInfoChanged:)
-                                                 name: NSControlTextDidChangeNotification
-                                               object: _netUDPPortTextField];
-    [[NSNotificationCenter defaultCenter] addObserver: self
-                                             selector: @selector(openNetInfoChanged:)
-                                                 name: NSControlTextDidChangeNotification
-                                               object: _netUDPMAddressTextField];
-    [[NSNotificationCenter defaultCenter] addObserver: self
-                                             selector: @selector(openNetInfoChanged:)
-                                                 name: NSControlTextDidChangeNotification
-                                               object: _netUDPMPortTextField];
-    [[NSNotificationCenter defaultCenter] addObserver: self
-                                             selector: @selector(openNetInfoChanged:)
-                                                 name: NSControlTextDidChangeNotification
-                                               object: _netHTTPURLTextField];
+    NSNotificationCenter *notificationCenter = [NSNotificationCenter defaultCenter];
+    [notificationCenter addObserver: self
+                           selector: @selector(openNetInfoChanged:)
+                               name: NSControlTextDidChangeNotification
+                             object: _netUDPPortTextField];
+    [notificationCenter addObserver: self
+                           selector: @selector(openNetInfoChanged:)
+                               name: NSControlTextDidChangeNotification
+                             object: _netUDPMAddressTextField];
+    [notificationCenter addObserver: self
+                           selector: @selector(openNetInfoChanged:)
+                               name: NSControlTextDidChangeNotification
+                             object: _netUDPMPortTextField];
+    [notificationCenter addObserver: self
+                           selector: @selector(openNetInfoChanged:)
+                               name: NSControlTextDidChangeNotification
+                             object: _netHTTPURLTextField];
 
-    [[NSNotificationCenter defaultCenter] addObserver: self
-                                             selector: @selector(screenFPSfieldChanged:)
-                                                 name: NSControlTextDidChangeNotification
-                                               object: _screenFPSTextField];
+    [notificationCenter addObserver: self
+                           selector: @selector(screenFPSfieldChanged:)
+                               name: NSControlTextDidChangeNotification
+                             object: _screenFPSTextField];
 
     /* register clicks on text fields */
-    [[NSNotificationCenter defaultCenter] addObserver: self
-                                             selector: @selector(textFieldWasClicked:)
-                                                 name: VLCOpenTextFieldWasClicked
-                                               object: nil];
+    [notificationCenter addObserver: self
+                           selector: @selector(textFieldWasClicked:)
+                               name: VLCOpenTextFieldWasClicked
+                             object: nil];
 
     /* we want to be notified about removed or added media */
     _allMediaDevices = [[NSMutableArray alloc] init];
     _specialMediaFolders = [[NSMutableArray alloc] init];
     _displayInfos = [[NSMutableArray alloc] init];
-    NSWorkspace *sharedWorkspace = [NSWorkspace sharedWorkspace];
-    [[sharedWorkspace notificationCenter] addObserver:self selector:@selector(scanOpticalMedia:) name:NSWorkspaceDidMountNotification object:nil];
-    [[sharedWorkspace notificationCenter] addObserver:self selector:@selector(scanOpticalMedia:) name:NSWorkspaceDidUnmountNotification object:nil];
+    NSNotificationCenter *sharedNotificationCenter = [[NSWorkspace sharedWorkspace] notificationCenter];
+    [sharedNotificationCenter addObserver:self selector:@selector(scanOpticalMedia:) name:NSWorkspaceDidMountNotification object:nil];
+    [sharedNotificationCenter addObserver:self selector:@selector(scanOpticalMedia:) name:NSWorkspaceDidUnmountNotification object:nil];
 
     [self qtkToggleUIElements:nil];
+    [self updateMediaSelector:nil];
     [self scanOpticalMedia:nil];
 
     [self setMRL: @""];
@@ -429,11 +424,9 @@ static NSString *kCaptureTabViewId  = @"capture";
     if (i_result <= 0)
         return;
 
-
-    NSMutableDictionary *itemOptionsDictionary;
     NSMutableArray *options = [NSMutableArray array];
+    NSMutableDictionary *itemOptionsDictionary = [NSMutableDictionary dictionaryWithObject: [self MRL] forKey: @"ITEM_URL"];
 
-    itemOptionsDictionary = [NSMutableDictionary dictionaryWithObject: [self MRL] forKey: @"ITEM_URL"];
     if ([_fileSubCheckbox state] == NSOnState) {
         module_config_t * p_item;
 
@@ -503,12 +496,12 @@ static NSString *kCaptureTabViewId  = @"capture";
             else
                 [options addObject: @"no-screen-follow-mouse"];
             if ([_screenqtkAudioCheckbox state] && _avCurrentAudioDeviceUID)
-                [options addObject: [NSString stringWithFormat: @"input-slave=qtsound://%@", _avCurrentAudioDeviceUID]];
+                [options addObject: [NSString stringWithFormat: @"input-slave=avaudiocapture://%@", _avCurrentAudioDeviceUID]];
         }
         else if ([[[_captureModePopup selectedItem] title] isEqualToString: _NS("Input Devices")]) {
             if ([_qtkVideoCheckbox state]) {
                 if ([_qtkAudioCheckbox state] && _avCurrentAudioDeviceUID)
-                    [options addObject: [NSString stringWithFormat: @"input-slave=qtsound://%@", _avCurrentAudioDeviceUID]];
+                    [options addObject: [NSString stringWithFormat: @"input-slave=avaudiocapture://%@", _avCurrentAudioDeviceUID]];
             }
         }
     }
@@ -722,9 +715,9 @@ static NSString *kCaptureTabViewId  = @"capture";
     NSView *opticalTabView = [[_tabView tabViewItemAtIndex: [_tabView indexOfTabViewItemWithIdentifier:kDiscTabViewId]] view];
     if (_currentOpticalMediaView) {
         [[opticalTabView animator] replaceSubview: _currentOpticalMediaView with: theView];
-    }
-    else
+    } else {
         [[opticalTabView animator] addSubview: theView];
+    }
     _currentOpticalMediaView = theView;
 
     NSImageView *imageView = [[NSImageView alloc] init];
@@ -733,9 +726,9 @@ static NSString *kCaptureTabViewId  = @"capture";
     [imageView setImage: icon];
     if (_currentOpticalMediaIconView) {
         [[opticalTabView animator] replaceSubview: _currentOpticalMediaIconView with: imageView];
-    }
-    else
+    } else {
         [[opticalTabView animator] addSubview: imageView];
+    }
     _currentOpticalMediaIconView = imageView;
     [_currentOpticalMediaView setNeedsDisplay: YES];
     [_currentOpticalMediaIconView setNeedsDisplay: YES];
@@ -790,7 +783,7 @@ static NSString *kCaptureTabViewId  = @"capture";
 {
     NSString *path = [url path];
 
-    NSString *type = [[VLCStringUtility sharedInstance] getVolumeTypeFromMountPath:path];
+    NSString *type = getVolumeTypeFromMountPath(path);
     NSImage *image = [[NSWorkspace sharedWorkspace] iconForFile: path];
     NSString *devicePath;
 
@@ -807,7 +800,7 @@ static NSString *kCaptureTabViewId  = @"capture";
         [type isEqualToString: kVLCMediaUnknown])
         devicePath = path;
     else
-        devicePath = [[VLCStringUtility sharedInstance] getBSDNodeFromMountPath:path];
+        devicePath = getBSDNodeFromMountPath(path);
 
     return [NSDictionary dictionaryWithObjectsAndKeys: path, @"path",
             devicePath, @"devicePath",
@@ -815,13 +808,14 @@ static NSString *kCaptureTabViewId  = @"capture";
             image, @"image", nil];
 }
 
-- (void)scanDevicesWithPaths:(NSArray *)paths
+- (void)scanDevices
 {
     @autoreleasepool {
-        NSUInteger count = [paths count];
+        NSArray *mountURLs = [[NSFileManager defaultManager] mountedVolumeURLsIncludingResourceValuesForKeys:@[NSURLVolumeIsRemovableKey] options:NSVolumeEnumerationSkipHiddenVolumes];
+        NSUInteger count = [mountURLs count];
         NSMutableArray *o_result = [NSMutableArray array];
         for (NSUInteger i = 0; i < count; i++) {
-            NSURL *currentURL = [paths objectAtIndex:i];
+            NSURL *currentURL = [mountURLs objectAtIndex:i];
 
             NSNumber *isRemovable = nil;
             if (![currentURL getResourceValue:&isRemovable forKey:NSURLVolumeIsRemovableKey error:nil] || !isRemovable) {
@@ -858,9 +852,7 @@ static NSString *kCaptureTabViewId  = @"capture";
 
 - (void)scanOpticalMedia:(NSNotification *)o_notification
 {
-    NSArray *mountURLs = [[NSFileManager defaultManager] mountedVolumeURLsIncludingResourceValuesForKeys:@[NSURLVolumeIsRemovableKey] options:NSVolumeEnumerationSkipHiddenVolumes];
-
-    [NSThread detachNewThreadSelector:@selector(scanDevicesWithPaths:) toTarget:self withObject:mountURLs];
+    [NSThread detachNewThreadSelector:@selector(scanDevices) toTarget:self withObject:nil];
 }
 
 - (void)updateMediaSelector:(NSNumber *)selection
@@ -898,7 +890,6 @@ static NSString *kCaptureTabViewId  = @"capture";
         [self setMRL:@""];
         [self showOpticalMediaView: _discNoDiscView withIcon: [NSImage imageNamed: @"NSApplicationIcon"]];
     }
-
 }
 
 - (IBAction)discSelectorChanged:(id)sender
@@ -1174,7 +1165,7 @@ static NSString *kCaptureTabViewId  = @"capture";
         if ([_qtkVideoCheckbox state] && _avCurrentDeviceUID)
             [self setMRL:[NSString stringWithFormat:@"avcapture://%@", _avCurrentDeviceUID]];
         else if ([_qtkAudioCheckbox state] && _avCurrentAudioDeviceUID)
-            [self setMRL:[NSString stringWithFormat:@"qtsound://%@", _avCurrentAudioDeviceUID]];
+            [self setMRL:[NSString stringWithFormat:@"avaudiocapture://%@", _avCurrentAudioDeviceUID]];
     }
 }
 
@@ -1316,13 +1307,13 @@ static NSString *kCaptureTabViewId  = @"capture";
         NSBeep();
 }
 
-- (void)updateQTKVideoDevices
+- (void)updateVideoDevices
 {
     _avvideoDevices = [[AVCaptureDevice devicesWithMediaType:AVMediaTypeVideo]
                          arrayByAddingObjectsFromArray:[AVCaptureDevice devicesWithMediaType:AVMediaTypeMuxed]];
 }
 
-- (void)updateQTKAudioDevices
+- (void)updateAudioDevices
 {
     _avaudioDevices = [[AVCaptureDevice devicesWithMediaType:AVMediaTypeAudio]
                         arrayByAddingObjectsFromArray:[AVCaptureDevice devicesWithMediaType:AVMediaTypeMuxed]];

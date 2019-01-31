@@ -2,7 +2,6 @@
  * VLCRendererItem.m: Wrapper class for vlc_renderer_item_t
  *****************************************************************************
  * Copyright (C) 2016 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Marvin Scholz <epirat07 at gmail dot com>
  *
@@ -22,7 +21,7 @@
  *****************************************************************************/
 
 #import "VLCRendererItem.h"
-#import "VLCStringUtility.h"
+#import "NSString+Helpers.h"
 
 #include <vlc_common.h>
 #include <vlc_renderer_discovery.h>

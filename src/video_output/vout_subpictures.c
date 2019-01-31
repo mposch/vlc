@@ -2,7 +2,6 @@
  * vout_subpictures.c : subpicture management functions
  *****************************************************************************
  * Copyright (C) 2000-2007 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Vincent Seguin <seguin@via.ecp.fr>
  *          Samuel Hocevar <sam@zoy.org>
@@ -1010,7 +1009,8 @@ static subpicture_t *SpuRenderSubpictures(spu_t *spu,
                                           const video_format_t *fmt_dst,
                                           const video_format_t *fmt_src,
                                           vlc_tick_t render_subtitle_date,
-                                          vlc_tick_t render_osd_date)
+                                          vlc_tick_t render_osd_date,
+                                          bool external_scale)
 {
     spu_private_t *sys = spu->p;
 
@@ -1114,14 +1114,33 @@ static subpicture_t *SpuRenderSubpictures(spu_t *spu,
             if (scale.w <= 0 || scale.h <= 0)
                 continue;
 
+            const bool do_external_scale = external_scale && region->fmt.i_chroma != VLC_CODEC_TEXT;
+            spu_scale_t virtual_scale = external_scale ? (spu_scale_t){ SCALE_UNIT, SCALE_UNIT } : scale;
+
             /* */
             SpuRenderRegion(spu, output_last_ptr, &area,
-                            subpic, region, scale,
+                            subpic, region, virtual_scale,
                             chroma_list, fmt_dst,
                             subtitle_area, subtitle_area_count,
                             subpic->b_subtitle ? render_subtitle_date : render_osd_date);
             if (*output_last_ptr)
+            {
+                if (do_external_scale)
+                {
+                    if (scale.h != SCALE_UNIT)
+                    {
+                        (*output_last_ptr)->zoom_h.num = scale.h;
+                        (*output_last_ptr)->zoom_h.den = SCALE_UNIT;
+                    }
+                    if (scale.w != SCALE_UNIT)
+                    {
+                        (*output_last_ptr)->zoom_v.num = scale.w;
+                        (*output_last_ptr)->zoom_v.den = SCALE_UNIT;
+                    }
+                }
+
                 output_last_ptr = &(*output_last_ptr)->p_next;
+            }
 
             if (subpic->b_subtitle) {
                 area = spu_area_unscaled(area, scale);
@@ -1155,15 +1174,13 @@ static void UpdateSPU(spu_t *spu, const vlc_spu_highlight_t *hl)
 {
     spu_private_t *sys = spu->p;
 
-    vlc_mutex_lock(&sys->lock);
+    vlc_mutex_assert(&sys->lock);
 
     sys->palette.i_entries = 0;
     sys->force_crop = false;
 
-    if (hl == NULL) {
-        vlc_mutex_unlock(&sys->lock);
+    if (hl == NULL)
         return;
-    }
 
     sys->force_crop = true;
     sys->crop.x      = hl->x_start;
@@ -1173,7 +1190,6 @@ static void UpdateSPU(spu_t *spu, const vlc_spu_highlight_t *hl)
 
     if (hl->palette.i_entries == 4) /* XXX: Only DVD palette for now */
         memcpy(&sys->palette, &hl->palette, sizeof(sys->palette));
-    vlc_mutex_unlock(&sys->lock);
 
     msg_Dbg(spu, "crop: %i,%i,%i,%i, palette forced: %i",
             sys->crop.x, sys->crop.y,
@@ -1187,7 +1203,7 @@ static void UpdateSPU(spu_t *spu, const vlc_spu_highlight_t *hl)
 
 static subpicture_t *sub_new_buffer(filter_t *filter)
 {
-    int channel = (intptr_t)filter->owner.sys;
+    int channel = *(int *)filter->owner.sys;
 
     subpicture_t *subpicture = subpicture_New(NULL);
     if (subpicture)
@@ -1202,9 +1218,12 @@ static const struct filter_subpicture_callbacks sub_cbs = {
 static int SubSourceInit(filter_t *filter, void *data)
 {
     spu_t *spu = data;
-    int channel = spu_RegisterChannel(spu);
+    int *channel = malloc(sizeof (int));
+    if (unlikely(channel == NULL))
+        return VLC_ENOMEM;
 
-    filter->owner.sys = (void *)(intptr_t)channel;
+    *channel = spu_RegisterChannel(spu);
+    filter->owner.sys = channel;
     filter->owner.sub = &sub_cbs;
     return VLC_SUCCESS;
 }
@@ -1212,9 +1231,10 @@ static int SubSourceInit(filter_t *filter, void *data)
 static int SubSourceClean(filter_t *filter, void *data)
 {
     spu_t *spu = data;
-    int channel = (intptr_t)filter->owner.sys;
+    int *channel = filter->owner.sys;
 
-    spu_ClearChannel(spu, channel);
+    spu_ClearChannel(spu, *channel);
+    free(channel);
     return VLC_SUCCESS;
 }
 
@@ -1371,29 +1391,31 @@ void spu_Destroy(spu_t *spu)
 }
 
 /**
- * Attach/Detach the SPU from any input
- *
- * \param p_this the object in which to destroy the subpicture unit
- * \param b_attach to select attach or detach
+ * Attach the SPU to an input
  */
-void spu_Attach(spu_t *spu, input_thread_t *input, bool attach)
+void spu_Attach(spu_t *spu, input_thread_t *input)
 {
-    if (attach) {
+    vlc_mutex_lock(&spu->p->lock);
+    if (spu->p->input != input) {
         UpdateSPU(spu, NULL);
 
-        vlc_mutex_lock(&spu->p->lock);
         spu->p->input = input;
 
         if (spu->p->text)
             FilterRelease(spu->p->text);
         spu->p->text = SpuRenderCreateAndLoadText(spu);
-
-        vlc_mutex_unlock(&spu->p->lock);
-    } else {
-        vlc_mutex_lock(&spu->p->lock);
-        spu->p->input = NULL;
-        vlc_mutex_unlock(&spu->p->lock);
     }
+    vlc_mutex_unlock(&spu->p->lock);
+}
+
+/**
+ * Detach the SPU from its attached input
+ */
+void spu_Detach(spu_t *spu)
+{
+    vlc_mutex_lock(&spu->p->lock);
+    spu->p->input = NULL;
+    vlc_mutex_unlock(&spu->p->lock);
 }
 
 /**
@@ -1464,8 +1486,7 @@ void spu_PutSubpicture(spu_t *spu, subpicture_t *subpic)
         if (chain_update && *chain_update) {
             vlc_mutex_lock(&sys->lock);
             if (!sys->source_chain_update || !*sys->source_chain_update) {
-                if (sys->source_chain_update)
-                    free(sys->source_chain_update);
+                free(sys->source_chain_update);
                 sys->source_chain_update = chain_update;
                 sys->source_chain_current = strdup(chain_update);
                 chain_update = NULL;
@@ -1508,7 +1529,8 @@ subpicture_t *spu_Render(spu_t *spu,
                          const video_format_t *fmt_src,
                          vlc_tick_t render_subtitle_date,
                          vlc_tick_t render_osd_date,
-                         bool ignore_osd)
+                         bool ignore_osd,
+                         bool external_scale)
 {
     spu_private_t *sys = spu->p;
 
@@ -1592,7 +1614,8 @@ subpicture_t *spu_Render(spu_t *spu,
                                                 fmt_dst,
                                                 fmt_src,
                                                 render_subtitle_date,
-                                                render_osd_date);
+                                                render_osd_date,
+                                                external_scale);
     vlc_mutex_unlock(&sys->lock);
 
     return render;
@@ -1640,7 +1663,8 @@ void spu_ClearChannel(spu_t *spu, int channel)
 
         if (!subpic)
             continue;
-        if (subpic->i_channel != channel && (channel != -1 || subpic->i_channel == VOUT_SPU_CHANNEL_OSD))
+        if (subpic->i_channel != channel &&
+            (channel != VOUT_SPU_CHANNEL_INVALID || subpic->i_channel == VOUT_SPU_CHANNEL_OSD))
             continue;
 
         /* You cannot delete subpicture outside of SpuSelectSubpictures */
@@ -1697,5 +1721,7 @@ void spu_ChangeMargin(spu_t *spu, int margin)
 
 void spu_SetHighlight(spu_t *spu, const vlc_spu_highlight_t *hl)
 {
+    vlc_mutex_lock(&spu->p->lock);
     UpdateSPU(spu, hl);
+    vlc_mutex_unlock(&spu->p->lock);
 }

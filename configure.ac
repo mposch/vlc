@@ -1,6 +1,6 @@
 dnl Autoconf settings for vlc
 
-AC_COPYRIGHT([Copyright 1999-2018 VLC authors and VideoLAN])
+AC_COPYRIGHT([Copyright 1999-2019 VLC authors and VideoLAN])
 
 AC_INIT([vlc], [4.0.0-dev])
 VERSION_MAJOR=4
@@ -14,7 +14,7 @@ AC_SUBST([PKGDIR])
 
 CONFIGURE_LINE="`echo "$0 $ac_configure_args" | sed -e 's/\\\/\\\\\\\/g'`"
 CODENAME="Otto Chriek"
-COPYRIGHT_YEARS="1996-2018"
+COPYRIGHT_YEARS="1996-2019"
 
 AC_CONFIG_SRCDIR([src/libvlc.c])
 AC_CONFIG_AUX_DIR([autotools])
@@ -36,7 +36,12 @@ dnl
 AC_PROG_CC
 AC_USE_SYSTEM_EXTENSIONS
 VLC_PROG_CC_C11
-AC_DEFINE([_FORTIFY_SOURCE], 2, [Define to 2 to get glibc warnings.])
+AH_VERBATIM([FORTIFY_SOURCE],
+  [/* Enable compile-time and run-time bounds-checking, and some warnings,
+   without upsetting glibc 2.15+ or toolchains predefining _FORTIFY_SOURCE */
+#if !defined _FORTIFY_SOURCE && defined __OPTIMIZE__ && __OPTIMIZE__
+# define _FORTIFY_SOURCE 2
+#endif])
 AC_DEFINE([_FILE_OFFSET_BITS], 64, [Define to 64 for large files support.])
 AC_DEFINE([__LIBVLC__],, [Define within the LibVLC source code tree.])
 AC_DEFINE([WIN32_LEAN_AND_MEAN],, [Define to limit the scope of <windows.h>.])
@@ -249,7 +254,7 @@ case "${host_os}" in
         dnl NSIS/MSI Installer prefix and WIN64
         dnl
         case "${host_cpu}" in
-            amd64|x86_64)
+            amd64|x86_64|aarch64)
                 HAVE_WIN64="1"
                 WINDOWS_ARCH="x64"
                 PROGRAMFILES="PROGRAMFILES64"
@@ -742,6 +747,20 @@ AC_CHECK_LIB([m], [sincos], [
   AC_LIBOBJ([sincos])
 ])
 
+AC_MSG_CHECKING([broken qsort_r prototype])
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([#include <stdlib.h>
+
+_Static_assert(_Generic((qsort_r),
+    void (*)(void *, size_t, size_t, void *,
+             int (*)(void *, const void *, const void *)) : 1, default: 0),
+    "Bad prototype not matched");
+])], [
+  AC_MSG_RESULT([broken])
+  AC_DEFINE([HAVE_BROKEN_QSORT_R], 1, [Defined to 1 if the qsort_r() prototype contradicts the upcoming POSIX standard.])
+], [
+  AC_MSG_RESULT([no])
+])
+
 AC_MSG_CHECKING([_Thread_local support])
 AC_COMPILE_IFELSE([AC_LANG_SOURCE([_Thread_local int foo = 0;
                    int main() {}])], [
@@ -794,14 +813,16 @@ AM_CONDITIONAL([HAVE_DYNAMIC_PLUGINS], [test "${have_dynamic_objects}" != "no"])
 
 AC_SUBST([LIBDL])
 
-AC_SEARCH_LIBS([clock_nanosleep], [rt pthread], [
-  AS_IF([test "$ac_cv_search_clock_nanosleep" != "none required"], [
-    LIBRT="$ac_cv_search_clock_nanosleep"
-  ])
-], [
-  AC_SEARCH_LIBS([nanosleep], [rt pthread posix4], [
-    AS_IF([test "$ac_cv_search_nanosleep" != "none required"], [
-      LIBRT="$ac_cv_search_nanosleep"
+AS_IF([test "${SYS}" != "mingw32"], [
+  AC_SEARCH_LIBS([clock_nanosleep], [rt pthread], [
+    AS_IF([test "$ac_cv_search_clock_nanosleep" != "none required"], [
+      LIBRT="$ac_cv_search_clock_nanosleep"
+    ])
+  ], [
+    AC_SEARCH_LIBS([nanosleep], [rt pthread posix4], [
+      AS_IF([test "$ac_cv_search_nanosleep" != "none required"], [
+        LIBRT="$ac_cv_search_nanosleep"
+      ])
     ])
   ])
 ])
@@ -1465,46 +1486,73 @@ AM_CONDITIONAL([HAVE_3DNOW], [test "$have_3dnow" = "yes"])
 
 AC_ARG_ENABLE([neon],
   AS_HELP_STRING([--disable-neon],
-    [disable NEON optimizations (default auto)]),, [
-  AS_IF([test "${host_cpu}" = "arm"], [enable_neon="yes"] ,[enable_neon="no"])
+    [disable ARM NEON optimizations (default auto)]),, [
+  case "${host_cpu}" in
+    "arm")
+      enable_neon="32"
+      ;;
+    "aarch64")
+      enable_neon="64"
+      ;;
+    *)
+      enable_neon="no"
+      ;;
+  esac
 ])
 AS_IF([test "${enable_neon}" != "no"], [
   VLC_SAVE_FLAGS
-  CFLAGS="${CFLAGS} -mfpu=neon -mhard-float"
   AC_CACHE_CHECK([if $CCAS groks ARM NEON assembly], [ac_cv_arm_neon], [
-    AC_COMPILE_IFELSE([
-      AC_LANG_PROGRAM(,[[
+    AS_IF([test "${enable_neon}" != "64"], [
+      CFLAGS="${CFLAGS} -mfpu=neon -mhard-float"
+      AC_COMPILE_IFELSE([
+        AC_LANG_PROGRAM(,[[
 asm volatile("vqmovun.s64 d0, q1":::"d0");
 ]])
+      ], [
+        ac_cv_arm_neon="32"
+      ], [
+        ac_cv_arm_neon="no"
+      ])
     ], [
-      ac_cv_arm_neon="yes"
-    ], [
-      ac_cv_arm_neon="no"
+      CFLAGS="${CFLAGS} -march=armv8-a+simd"
+      AC_COMPILE_IFELSE([
+        AC_LANG_PROGRAM(,[[
+asm volatile("uhadd v0.8b, v0.8b, v1.8b":::"v0");
+]])
+      ], [
+        ac_cv_arm_neon="64"
+      ], [
+        ac_cv_arm_neon="no"
+      ])
     ])
   ])
   VLC_RESTORE_FLAGS
 ])
-AM_CONDITIONAL([HAVE_NEON], [test "${ac_cv_arm_neon}" = "yes"])
+AM_CONDITIONAL([HAVE_NEON], [test "${ac_cv_arm_neon}" = "32"])
+AM_CONDITIONAL([HAVE_ARM64], [test "${ac_cv_arm_neon}" = "64"])
 
-AC_ARG_ENABLE([arm64],
-  AS_HELP_STRING([--disable-arm64],
-    [disable arm 64-bit optimizations (default auto)]),, [
-  AS_IF([test "${host_cpu}" = "aarch64"], [enable_arm64="yes"] ,[enable_arm64="no"])
+AC_ARG_ENABLE([sve],
+  AS_HELP_STRING([--disable-sve],
+    [disable ARM SVE optimizations (default auto)]),, [
+  AS_IF([test "${host_cpu}" = "aarch64"], [enable_sve="yes"] ,[enable_sve="no"])
 ])
-AS_IF([test "${enable_arm64}" != "no"], [
-  AC_CACHE_CHECK([if $CCAS groks ARM 64 SIMD assembly], [ac_cv_arm64], [
+AS_IF([test "${enable_sve}" != "no"], [
+  VLC_SAVE_FLAGS
+  CFLAGS="${CFLAGS} -march=armv8-a+sve"
+  AC_CACHE_CHECK([if $CCAS groks ARM SVE assembly], [ac_cv_arm_sve], [
     AC_COMPILE_IFELSE([
       AC_LANG_PROGRAM(,[[
-asm volatile("uhadd v0.8b, v0.8b, v1.8b":::"v0");
+asm volatile("ptrue p0.s" ::: "p0");
 ]])
     ], [
-      ac_cv_arm64="yes"
+      ac_cv_arm_sve="yes"
     ], [
-      ac_cv_arm64="no"
+      ac_cv_arm_sve="no"
     ])
   ])
+  VLC_RESTORE_FLAGS
 ])
-AM_CONDITIONAL([HAVE_ARM64], [test "${ac_cv_arm64}" = "yes"])
+AM_CONDITIONAL([HAVE_SVE], [test "${ac_cv_arm_sve}" = "yes"])
 
 
 AC_ARG_ENABLE([altivec],
@@ -2018,20 +2066,6 @@ PKG_ENABLE_MODULES_VLC([VNC], [vnc], [libvncclient >= 0.9.9], (VNC/rfb client su
 dnl  RDP/Remote Desktop access module
 dnl
 PKG_ENABLE_MODULES_VLC([FREERDP], [rdp], [freerdp >= 1.0.1], (RDP/Remote Desktop client support) )
-
-dnl
-dnl QTKit
-AC_ARG_ENABLE([macosx-qtkit],
-  AS_HELP_STRING([--enable-macosx-qtkit], [Mac OS X qtsound (audio) module (default enabled on Mac OS X <= v10.11)]))
-if test "x${enable_macosx_qtkit}" != "xno" &&
-  (test "${SYS}" = "darwin" || test "${enable_macosx_qtkit}" = "yes")
-then
-  AC_LANG_PUSH([Objective C])
-  AC_CHECK_HEADERS([QTKit/QTKit.h], [
-      VLC_ADD_PLUGIN([access_qtsound])
-    ])
-  AC_LANG_POP([Objective C])
-fi
 
 dnl
 dnl AVFoundation
@@ -2975,7 +3009,7 @@ AS_IF([test "${enable_tiger}" != "no"], [
 ])
 
 dnl
-dnl  check if we can build the css selector engine 
+dnl  check if we can build the css selector engine
 dnl
 AC_ARG_ENABLE([css],
 AS_HELP_STRING([--enable-css], [CSS selector engine (default auto)]))
@@ -3112,7 +3146,9 @@ AS_IF([test "${enable_xcb}" != "no"], [
     xcb_err="$xcb_err ${XCB_COMPOSITE_PKG_ERRORS}."])
   PKG_CHECK_MODULES([XCB_RANDR], [xcb-randr >= 1.3],, [
     xcb_err="$xcb_err ${XCB_RANDR_PKG_ERRORS}."])
-  PKG_CHECK_MODULES([XCB_SHM], [xcb-shm],, [
+  PKG_CHECK_MODULES([XCB_RENDER], [xcb-render],, [
+    xcb_err="$xcb_err ${XCB_RENDER_PKG_ERRORS}."])
+  PKG_CHECK_MODULES([XCB_SHM], [xcb-shm >= 1.9.2],, [
     xcb_err="$xcb_err ${XCB_SHM_PKG_ERRORS}."])
   PKG_CHECK_MODULES([XCB_XKB], [xcb-xkb],, [
     xcb_err="$xcb_err ${XCB_XKB_PKG_ERRORS}."])
@@ -3215,7 +3251,7 @@ AS_IF([test "${enable_wayland}" != "no"], [
   ])
 
   dnl wayland-protocols
-  PKG_CHECK_MODULES([WAYLAND_PROTOCOLS], [wayland-protocols >= 1.12], [
+  PKG_CHECK_MODULES([WAYLAND_PROTOCOLS], [wayland-protocols >= 1.15], [
     WAYLAND_PROTOCOLS="$(${PKG_CONFIG} wayland-protocols --variable pkgdatadir)"
   ], [
     wl_err="$wl_err ${WAYLAND_PROTOCOLS_PKG_ERRORS}."
@@ -3400,12 +3436,15 @@ AS_IF([test "${enable_directx}" != "no"], [
   ])
 
   dnl OpenGL
-  AC_CHECK_HEADERS([GL/wglew.h], [
-    VLC_ADD_PLUGIN([glwin32 wgl])
-  ],, [
-    #include <windows.h>
-    #include <GL/gl.h>
-  ])
+  AC_CHECK_HEADERS([GL/glew.h], [
+    AC_CHECK_HEADERS([GL/wglew.h], [
+        VLC_ADD_PLUGIN([glwin32 wgl])
+      ],, [
+        #include <windows.h>
+        #include <GL/glew.h>
+      ])],, [
+      #include <windows.h>
+   ])
 
   dnl Direct3D11
   AC_CHECK_HEADERS([d3d11.h], [
@@ -3740,6 +3779,7 @@ dnl QT
 dnl
 AC_ARG_ENABLE([qt],
   AS_HELP_STRING([--disable-qt], [Qt UI support (default enabled)]),, [
+  AS_IF([test "${enable_vlc}" != "no"], [enable_qt="yes"])
   AS_IF([test "${SYS}" = "darwin"], [
     enable_qt="no"
   ])
@@ -3760,7 +3800,7 @@ AS_IF([test "${enable_qt}" != "no"], [
       AC_PATH_PROGS(UIC, [uic-qt5 uic], uic, ["${QT_HOST_PATH}" "${QT_PATH}/bin"])
     ], [
       AS_IF([test -n "${enable_qt}"],[
-        AC_MSG_ERROR([${QT_PKG_ERRORS}.])
+        AC_MSG_ERROR([${QT_PKG_ERRORS}. If you want to build VLC without GUI, pass --disable-qt.])
       ],[
         AC_MSG_WARN([${QT_PKG_ERRORS}.])
       ])
@@ -4268,7 +4308,7 @@ AS_IF([test "${SYS}" = "mingw32"], [
 AM_CONDITIONAL([HAVE_MAKENSIS], [test "x$MAKENSIS" != "xno" && test "$nsis_version_ok" = "yes"])
 
 dnl
-dnl Check wether we have the PROCESS_MITIGATION_IMAGE_LOAD_POLICY 
+dnl Check wether we have the PROCESS_MITIGATION_IMAGE_LOAD_POLICY
 dnl It should only be available when building for win10, but some SDKs define it unconditionnaly
 dnl
 if test "${SYS}" = "mingw32"; then

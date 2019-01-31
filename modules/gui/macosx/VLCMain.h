@@ -2,7 +2,6 @@
  * VLCMain.h: MacOS X interface module
  *****************************************************************************
  * Copyright (C) 2002-2016 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Derk-Jan Hartman <hartman at videolan dot org>
  *          Felix Paul Kühne <fkuehne at videolan dot org>
@@ -30,7 +29,7 @@
 
 #import <vlc_common.h>
 #import <vlc_interface.h>
-#import <vlc_playlist.h>
+#import <vlc_playlist_legacy.h>
 #import <vlc_vout.h>
 #import <vlc_aout.h>
 #import <vlc_input.h>
@@ -42,7 +41,7 @@
 #import "VLCMainWindow.h"
 #import "VLCVideoOutputProvider.h"
 #import "VLCStatusBarIcon.h"
-#import "VLCStringUtility.h"
+#import "NSString+Helpers.h"
 
 /*****************************************************************************
  * Local prototypes.
@@ -53,6 +52,7 @@ intf_thread_t *getIntf(void);
 static NSString * VLCInputChangedNotification = @"VLCInputChangedNotification";
 static NSString * VLCConfigurationChangedNotification = @"VLCConfigurationChangedNotification";
 static NSString * VLCMediaKeySupportSettingChangedNotification = @"VLCMediaKeySupportSettingChangedNotification";
+static NSString * VLCAppleRemoteSettingChangedNotification = @"VLCAppleRemoteSettingChangedNotification";
 
 /*****************************************************************************
  * VLCMain interface
@@ -69,6 +69,7 @@ static NSString * VLCMediaKeySupportSettingChangedNotification = @"VLCMediaKeySu
 @class VLCBookmarksWindowController;
 @class VLCOpenWindowController;
 @class VLCLogWindowController;
+@class VLCLibraryWindowController;
 @class VLCTrackSynchronizationWindowController;
 @class VLCAudioEffectsWindowController;
 @class VLCVideoEffectsWindowController;
@@ -76,12 +77,15 @@ static NSString * VLCMediaKeySupportSettingChangedNotification = @"VLCMediaKeySu
 @class VLCExtensionsManager;
 @class VLCInfo;
 @class VLCStatusBarIcon;
+@class VLCPlaylistController;
 
 @interface VLCMain : NSObject <NSWindowDelegate, NSApplicationDelegate>
 
 @property (readonly) VLCVideoOutputProvider* voutProvider;
 @property (readonly) BOOL nativeFullscreenMode;
 @property (nonatomic, readwrite) BOOL playlistUpdatedSelectorInQueue;
+@property (readonly) VLCLibraryWindowController *libraryWindowController;
+@property (readonly) VLCPlaylistController *playlistController;
 
 + (VLCMain *)sharedInstance;
 + (void)killInstance;

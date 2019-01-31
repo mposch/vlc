@@ -2,7 +2,6 @@
  * VLCMainWindow.h: MacOS X interface module
  *****************************************************************************
  * Copyright (C) 2002-2014 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Felix Paul Kühne <fkuehne -at- videolan -dot- org>
  *          Jon Lech Johansen <jon-vl@nanocrew.net>
@@ -34,7 +33,6 @@
 #import "misc.h"
 #import "VLCFSPanelController.h"
 
-@class VLCDetachedVideoWindow;
 @class VLCMainWindowControlsBar;
 @class VLCVoutView;
 @class PXSourceList;
@@ -123,9 +121,5 @@ typedef enum {
 
 - (void)videoplayWillBeStarted;
 - (void)setVideoplayEnabled;
-
-@end
-
-@interface VLCDetachedVideoWindow : VLCVideoWindowCommon
 
 @end

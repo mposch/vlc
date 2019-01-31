@@ -1,8 +1,7 @@
 /*****************************************************************************
  * VLCStatusBarIcon.m: Status bar icon controller/delegate
  *****************************************************************************
- * Copyright (C) 2016 VLC authors and VideoLAN
- * $Id$
+ * Copyright (C) 2016-2019 VLC authors and VideoLAN
  *
  * Authors: Goran Dokic <vlc at 8hz dot com>
  *
@@ -22,20 +21,13 @@
  *****************************************************************************/
 
 #import "VLCStatusBarIcon.h"
-
-#import "VLCMainMenu.h"
 #import "VLCMain.h"
-
-#import <vlc_common.h>
-#import <vlc_playlist.h>
-#import <vlc_input.h>
-
-#import "CompatibilityFixes.h"
 #import "VLCCoreInteraction.h"
-#import "VLCStringUtility.h"
 #import "NSString+Helpers.h"
 
-#import "VLCApplication.h"
+#import <vlc_common.h>
+#import <vlc_playlist_legacy.h>
+#import <vlc_input.h>
 
 @interface VLCStatusBarIcon ()
 {
@@ -75,16 +67,12 @@
 #pragma mark -
 #pragma mark Init
 
-
 - (instancetype)init
 {
     self = [super init];
-
     if (self) {
-        msg_Dbg(getIntf(), "Loading VLCStatusBarIcon");
         [[NSBundle mainBundle] loadNibNamed:@"VLCStatusBarIconMainMenu" owner:self topLevelObjects:nil];
     }
-
     return self;
 }
 
@@ -115,15 +103,16 @@
     [_vlcStatusBarIconMenu setDelegate:self];
     
     // Register notifications
-    [[NSNotificationCenter defaultCenter] addObserver:self
-                                             selector:@selector(updateNowPlayingInfo)
-                                                 name:VLCInputChangedNotification
-                                               object:nil];
+    NSNotificationCenter *notificationCenter = [NSNotificationCenter defaultCenter];
+    [notificationCenter addObserver:self
+                           selector:@selector(updateNowPlayingInfo)
+                               name:VLCInputChangedNotification
+                             object:nil];
 
-    [[NSNotificationCenter defaultCenter] addObserver:self
-                                             selector:@selector(configurationChanged:)
-                                                 name:VLCConfigurationChangedNotification
-                                               object:nil];
+    [notificationCenter addObserver:self
+                           selector:@selector(configurationChanged:)
+                               name:VLCConfigurationChangedNotification
+                             object:nil];
 }
 
 - (void)observeValueForKeyPath:(NSString *)keyPath
@@ -168,7 +157,6 @@
 
         // Attach pull-down menu
         [self.statusItem setMenu:_vlcStatusBarIconMenu];
-
 
         if (@available(macOS 10.12, *)) {
             [self.statusItem setBehavior:NSStatusItemBehaviorRemovalAllowed];
@@ -393,14 +381,15 @@
 - (void)updateDynamicMenuItemText
 {
     if (!_currentPlaybackUrl) {
-        [pathActionItem setTitle:_NS("Path/URL Action")];
+        pathActionItem.hidden = YES;
         return;
     }
 
     NSURL *itemURI = [NSURL URLWithString:_currentPlaybackUrl];
+    pathActionItem.hidden = NO;
 
     if ([itemURI.scheme isEqualToString:@"file"]) {
-        [pathActionItem setTitle:_NS("Select File In Finder")];
+        [pathActionItem setTitle:_NS("Reveal in Finder")];
     } else {
         [pathActionItem setTitle:_NS("Copy URL to clipboard")];
     }
@@ -416,8 +405,6 @@
 
     [randButton setState:(random) ? NSOnState : NSOffState];
 }
-
-
 
 #pragma mark -
 #pragma mark Utility functions
@@ -455,7 +442,6 @@
     [totalField setEnabled:enabled];
 }
 
-
 /* Returns VLC playlist status
  * Check for constants:
  *   PLAYLIST_RUNNING, PLAYLIST_STOPPED, PLAYLIST_PAUSED
@@ -471,7 +457,6 @@
 
     return res;
 }
-
 
 #pragma mark -
 #pragma mark Menu item Actions
@@ -504,7 +489,7 @@
 // Action: Show VLC main window
 - (IBAction)restoreMainWindow:(id)sender
 {
-    [[VLCApplication sharedApplication] activateIgnoringOtherApps:YES];
+    [[NSApp sharedApplication] activateIgnoringOtherApps:YES];
     [[[VLCMain sharedInstance] mainWindow] makeKeyAndOrderFront:sender];
 }
 

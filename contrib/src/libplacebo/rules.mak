@@ -1,14 +1,18 @@
 # libplacebo
 
-PLACEBO_VERSION := 1.7.0-rc1
-PLACEBO_URL := https://github.com/haasn/libplacebo/archive/v$(PLACEBO_VERSION).tar.gz
-PLACEBO_ARCHIVE = libplacebo-$(PLACEBO_VERSION).tar.gz
+PLACEBO_VERSION := 1.7.0
+PLACEBO_ARCHIVE = libplacebo-v$(PLACEBO_VERSION).tar.gz
+PLACEBO_URL := https://code.videolan.org/videolan/libplacebo/-/archive/v$(PLACEBO_VERSION)/$(PLACEBO_ARCHIVE)
 
 DEPS_libplacebo = glslang
 
 PKGS += libplacebo
 ifeq ($(call need_pkg,"libplacebo"),)
 PKGS_FOUND += libplacebo
+endif
+
+ifdef HAVE_WIN32
+DEPS_libplacebo += pthreads $(DEPS_pthreads)
 endif
 
 PLACEBOCONF := -Dglslang=enabled \
@@ -21,8 +25,7 @@ $(TARBALLS)/$(PLACEBO_ARCHIVE):
 
 libplacebo: $(PLACEBO_ARCHIVE) .sum-libplacebo
 	$(UNPACK)
-	$(APPLY) $(SRC)/libplacebo/0001-build-fix-lpthread-dependency-with-glslang.patch
-	$(APPLY) $(SRC)/libplacebo/0002-meson-fix-glslang-search-path.patch
+	$(APPLY) $(SRC)/libplacebo/0001-meson-fix-glslang-search-path.patch
 	$(MOVE)
 
 .libplacebo: libplacebo crossfile.meson

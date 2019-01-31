@@ -1,9 +1,7 @@
 /*****************************************************************************
->>>>>>> Stashed changes
  * VLCPLItem.m: MacOS X interface module
  *****************************************************************************
  * Copyright (C) 2014 VLC authors and VideoLAN
- * $Id$
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,7 +23,7 @@
 #import "misc.h"    /* VLCByteCountFormatter */
 
 #import "VLCPlaylist.h"
-#import "VLCStringUtility.h"
+#import "NSString+Helpers.h"
 #import "VLCMain.h"
 #import "VLCMainWindowControlsBar.h"
 #import "VLCMainMenu.h"
@@ -37,7 +35,7 @@
 #endif
 #include <assert.h>
 
-#include <vlc_playlist.h>
+#include <vlc_playlist_legacy.h>
 #include <vlc_input_item.h>
 #include <vlc_input.h>
 #include <vlc_url.h>

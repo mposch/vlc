@@ -2,7 +2,6 @@
  * misc.m: code not specific to vlc
  *****************************************************************************
  * Copyright (C) 2003-2015 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Jon Lech Johansen <jon-vl@nanocrew.net>
  *          Felix Paul Kühne <fkuehne at videolan dot org>
@@ -25,10 +24,12 @@
 #import "CompatibilityFixes.h"
 #import "misc.h"
 #import "VLCMainWindow.h"
+#import "VLCMain.h"
+#import "VLCPlaylist.h"
 #import "VLCMainMenu.h"
 #import "VLCControlsBarCommon.h"
 #import "VLCCoreInteraction.h"
-#import "VLCStringUtility.h"
+#import "NSString+Helpers.h"
 #import <vlc_actions.h>
 
 /*****************************************************************************
@@ -123,7 +124,7 @@
     if (_dropHandler && [_dropHandler respondsToSelector:@selector(performDragOperation:)])
         b_returned = [_dropHandler performDragOperation:sender];
     else // default
-        b_returned = [[VLCCoreInteraction sharedInstance] performDragOperation:sender];
+        b_returned = [[[VLCMain sharedInstance] playlist] performDragOperation:sender];
 
     [self setNeedsDisplay:YES];
     return b_returned;

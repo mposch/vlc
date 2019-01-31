@@ -2,7 +2,6 @@
  * VLCPlaylist.h: MacOS X interface module
  *****************************************************************************
  * Copyright (C) 2002-2015 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Benjamin Pracht <bigben at videolab dot org>
  *          Felix Paul Kühne <fkuehne at videolan dot org>
@@ -63,6 +62,8 @@
 - (IBAction)addFilesToPlaylist:(id)sender;
 
 - (NSArray *)draggedItems;
+
+- (BOOL)performDragOperation:(id <NSDraggingInfo>)sender;
 
 /**
  * Prepares an array of playlist items for all suitable pasteboard types.

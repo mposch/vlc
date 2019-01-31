@@ -24,6 +24,7 @@
 
 #include <vlc_es.h>
 #include <vlc_codecs.h>
+#include "coreaudio.h"
 
 /* Use alias for scaled time */
 typedef int64_t stime_t;
@@ -422,6 +423,7 @@ typedef int64_t stime_t;
 #define ATOM_SA3D VLC_FOURCC( 'S', 'A', '3', 'D' )
 
 /* iso4 meta references */
+#define ATOM_idat VLC_FOURCC('i','d','a','t')
 #define ATOM_iloc VLC_FOURCC('i','l','o','c')
 #define ATOM_iinf VLC_FOURCC('i','i','n','f')
 #define ATOM_infe VLC_FOURCC('i','n','f','e')
@@ -1373,71 +1375,11 @@ typedef struct
     } entries;
 } MP4_Box_data_sbgp_t;
 
-/* According to Apple's CoreAudio/CoreAudioTypes.h */
-#define MP4_CHAN_USE_CHANNELS_DESC           0
-#define MP4_CHAN_USE_CHANNELS_BITMAP         (1<<16)
-
-#define MP4_CHAN_BITMAP_LEFT                 (1<<0)
-#define MP4_CHAN_BITMAP_RIGHT                (1<<1)
-#define MP4_CHAN_BITMAP_CENTER               (1<<2)
-#define MP4_CHAN_BITMAP_LFESCREEN            (1<<3)
-#define MP4_CHAN_BITMAP_BACKLEFT             (1<<4)
-#define MP4_CHAN_BITMAP_BACKRIGHT            (1<<5)
-#define MP4_CHAN_BITMAP_LEFTCENTER           (1<<6)
-#define MP4_CHAN_BITMAP_RIGHTCENTER          (1<<7)
-#define MP4_CHAN_BITMAP_BACKCENTER           (1<<8)
-#define MP4_CHAN_BITMAP_SIDELEFT             (1<<9)
-#define MP4_CHAN_BITMAP_SIDERIGHT            (1<<10)
-#define MP4_CHAN_BITMAP_TOPCENTER            (1<<11)
-#define MP4_CHAN_BITMAP_TOPFRONTLEFT         (1<<12)
-#define MP4_CHAN_BITMAP_TOPFRONTENTER        (1<<13)
-#define MP4_CHAN_BITMAP_TOPFRONTRIGHT        (1<<14)
-#define MP4_CHAN_BITMAP_TOPBACKLEFT          (1<<15)
-#define MP4_CHAN_BITMAP_TOPBACKCENTER        (1<<16)
-#define MP4_CHAN_BITMAP_TOPBACKRIGHT         (1<<17)
-
-#define MP4_CHAN_BITMAP_MAPPING_COUNT 18
-static const struct
-{
-    uint32_t i_bitmap;
-    uint32_t i_vlc;
-} chan_bitmap_mapping[MP4_CHAN_BITMAP_MAPPING_COUNT] = {
-    { MP4_CHAN_BITMAP_LEFT,         AOUT_CHAN_LEFT },
-    { MP4_CHAN_BITMAP_RIGHT,        AOUT_CHAN_RIGHT },
-    { MP4_CHAN_BITMAP_CENTER,       AOUT_CHAN_CENTER },
-    { MP4_CHAN_BITMAP_LFESCREEN,    AOUT_CHAN_LFE },
-    { MP4_CHAN_BITMAP_BACKLEFT,     AOUT_CHAN_REARLEFT },
-    { MP4_CHAN_BITMAP_BACKRIGHT,    AOUT_CHAN_REARRIGHT },
-    { MP4_CHAN_BITMAP_LEFTCENTER,   AOUT_CHAN_MIDDLELEFT },
-    { MP4_CHAN_BITMAP_RIGHTCENTER,  AOUT_CHAN_MIDDLERIGHT },
-    { MP4_CHAN_BITMAP_BACKCENTER,   AOUT_CHAN_REARCENTER },
-    { MP4_CHAN_BITMAP_SIDELEFT,     AOUT_CHAN_LEFT },
-    { MP4_CHAN_BITMAP_SIDERIGHT,    AOUT_CHAN_RIGHT },
-    { MP4_CHAN_BITMAP_TOPCENTER,    AOUT_CHAN_CENTER },
-    { MP4_CHAN_BITMAP_TOPFRONTLEFT, AOUT_CHAN_LEFT },
-    { MP4_CHAN_BITMAP_TOPFRONTENTER,AOUT_CHAN_CENTER },
-    { MP4_CHAN_BITMAP_TOPFRONTRIGHT,AOUT_CHAN_RIGHT },
-    { MP4_CHAN_BITMAP_TOPBACKLEFT,  AOUT_CHAN_REARLEFT },
-    { MP4_CHAN_BITMAP_TOPBACKCENTER,AOUT_CHAN_REARCENTER },
-    { MP4_CHAN_BITMAP_TOPBACKRIGHT, AOUT_CHAN_REARRIGHT },
-};
-
 typedef struct
 {
     uint8_t i_version;
     uint32_t i_channels_flags; /* 24 bits */
-    struct
-    {
-        uint32_t i_channels_layout_tag;
-        uint32_t i_channels_bitmap;
-        uint32_t i_channels_description_count;
-        struct
-        {
-            uint32_t i_channel_label;
-            uint32_t i_channel_flags;
-            float    f_coordinates[3];
-        } *p_descriptions;
-    } layout;
+    struct CoreAudio_layout_s layout;
 } MP4_Box_data_chan_t;
 
 typedef struct

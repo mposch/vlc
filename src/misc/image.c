@@ -2,7 +2,6 @@
  * image.c : wrapper for image reading/writing facilities
  *****************************************************************************
  * Copyright (C) 2004-2007 VLC authors and VideoLAN
- * $Id$
  *
  * Author: Gildas Bazin <gbazin@videolan.org>
  *
@@ -61,9 +60,10 @@ static inline struct decoder_owner *dec_get_owner( decoder_t *p_dec )
 }
 
 static picture_t *ImageRead( image_handler_t *, block_t *,
-                             const video_format_t *, video_format_t * );
+                             const video_format_t *, const uint8_t *, size_t,
+                             video_format_t * );
 static picture_t *ImageReadUrl( image_handler_t *, const char *,
-                                video_format_t *, video_format_t * );
+                                const video_format_t *, video_format_t * );
 static block_t *ImageWrite( image_handler_t *, picture_t *,
                             const video_format_t *, const video_format_t * );
 static int ImageWriteUrl( image_handler_t *, picture_t *,
@@ -72,7 +72,8 @@ static int ImageWriteUrl( image_handler_t *, picture_t *,
 static picture_t *ImageConvert( image_handler_t *, picture_t *,
                                 const video_format_t *, video_format_t * );
 
-static decoder_t *CreateDecoder( image_handler_t *, const video_format_t * );
+static decoder_t *CreateDecoder( image_handler_t *, const video_format_t *,
+                                 const uint8_t *, size_t );
 static void DeleteDecoder( decoder_t * );
 static encoder_t *CreateEncoder( vlc_object_t *, const video_format_t *,
                                  const video_format_t * );
@@ -140,6 +141,7 @@ static void ImageQueueVideo( decoder_t *p_dec, picture_t *p_pic )
 
 static picture_t *ImageRead( image_handler_t *p_image, block_t *p_block,
                              const video_format_t *p_fmt_in,
+                             const uint8_t *p_extra, size_t i_extra,
                              video_format_t *p_fmt_out )
 {
     picture_t *p_pic = NULL;
@@ -155,7 +157,8 @@ static picture_t *ImageRead( image_handler_t *p_image, block_t *p_block,
     /* Start a decoder */
     if( !p_image->p_dec )
     {
-        p_image->p_dec = CreateDecoder( p_image, p_fmt_in );
+        p_image->p_dec = CreateDecoder( p_image, p_fmt_in,
+                                        p_extra, i_extra );
         if( !p_image->p_dec )
         {
             block_Release(p_block);
@@ -273,7 +276,7 @@ static picture_t *ImageRead( image_handler_t *p_image, block_t *p_block,
 }
 
 static picture_t *ImageReadUrl( image_handler_t *p_image, const char *psz_url,
-                                video_format_t *p_fmt_in,
+                                const video_format_t *p_fmt_in,
                                 video_format_t *p_fmt_out )
 {
     block_t *p_block;
@@ -300,24 +303,30 @@ static picture_t *ImageReadUrl( image_handler_t *p_image, const char *psz_url,
     if( p_block == NULL )
         goto error;
 
-    if( !p_fmt_in->i_chroma )
+    video_format_t fmtin;
+    video_format_Init( &fmtin, p_fmt_in->i_chroma );
+    video_format_Copy( &fmtin, p_fmt_in );
+
+    if( !fmtin.i_chroma )
     {
         char *psz_mime = stream_MimeType( p_stream );
         if( psz_mime != NULL )
         {
-            p_fmt_in->i_chroma = image_Mime2Fourcc( psz_mime );
+            fmtin.i_chroma = image_Mime2Fourcc( psz_mime );
             free( psz_mime );
+        }
+        if( !fmtin.i_chroma )
+        {
+           /* Try to guess format from file name */
+           fmtin.i_chroma = image_Ext2Fourcc( psz_url );
         }
     }
     vlc_stream_Delete( p_stream );
 
-    if( !p_fmt_in->i_chroma )
-    {
-        /* Try to guess format from file name */
-        p_fmt_in->i_chroma = image_Ext2Fourcc( psz_url );
-    }
 
-    p_pic = ImageRead( p_image, p_block, p_fmt_in, p_fmt_out );
+    p_pic = ImageRead( p_image, p_block, &fmtin, NULL, 0, p_fmt_out );
+
+    video_format_Clean( &fmtin );
 
     return p_pic;
 error:
@@ -670,7 +679,8 @@ static picture_t *video_new_buffer( decoder_t *p_dec )
     return picture_NewFromFormat( &p_dec->fmt_out.video );
 }
 
-static decoder_t *CreateDecoder( image_handler_t *p_image, const video_format_t *fmt )
+static decoder_t *CreateDecoder( image_handler_t *p_image, const video_format_t *fmt,
+                                 const uint8_t *p_extra, size_t i_extra )
 {
     decoder_t *p_dec;
     struct decoder_owner *p_owner;
@@ -683,6 +693,15 @@ static decoder_t *CreateDecoder( image_handler_t *p_image, const video_format_t 
 
     p_dec->p_module = NULL;
     es_format_InitFromVideo( &p_dec->fmt_in, fmt );
+    if( i_extra )
+    {
+        p_dec->fmt_in.p_extra = malloc( i_extra );
+        if( p_dec->fmt_in.p_extra )
+        {
+            memcpy( p_dec->fmt_in.p_extra, p_extra, i_extra );
+            p_dec->fmt_in.i_extra = i_extra;
+        }
+    }
     es_format_Init( &p_dec->fmt_out, VIDEO_ES, 0 );
     p_dec->b_frame_drop_allowed = false;
 
@@ -705,7 +724,7 @@ static decoder_t *CreateDecoder( image_handler_t *p_image, const video_format_t 
                  (char*)&p_dec->fmt_in.i_codec );
 
         DeleteDecoder( p_dec );
-        return NULL;
+        p_dec = NULL;
     }
 
     return p_dec;

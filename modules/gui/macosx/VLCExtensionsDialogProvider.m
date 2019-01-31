@@ -2,7 +2,6 @@
  * VLCExtensionsDialogProvider.m: Mac OS X Extensions Dialogs
  *****************************************************************************
  * Copyright (C) 2010-2015 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Pierre d'Herbemont <pdherbemont # videolan org>
  *          Brendon Justin <brendonjustin@gmail.com>,
@@ -76,6 +75,17 @@ static NSView *createControlFromWidget(extension_widget_t *widget, id self)
                 [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(syncTextField:)  name:NSControlTextDidChangeNotification object:field];
                 return field;
             }
+            case EXTENSION_WIDGET_PASSWORD:
+            {
+                VLCDialogSecureTextField *field = [[VLCDialogSecureTextField alloc] init];
+                [field setWidget:widget];
+                [field setAutoresizingMask:NSViewWidthSizable];
+                [field setFont:[NSFont systemFontOfSize:0]];
+                [[field cell] setControlSize:NSRegularControlSize];
+                [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(syncTextField:)  name:NSControlTextDidChangeNotification object:field];
+                return field;
+            }
+
             case EXTENSION_WIDGET_CHECK_BOX:
             {
                 VLCDialogButton *button = [[VLCDialogButton alloc] init];
@@ -144,6 +154,7 @@ static NSView *createControlFromWidget(extension_widget_t *widget, id self)
                 return spinner;
             }
             default:
+                msg_Err(getIntf(), "Unhandled Widget type %i", widget->type);
                 return nil;
         }
     }
@@ -314,9 +325,17 @@ static void extensionDialogCallback(extension_dialog_t *p_ext_dialog,
 - (void)syncTextField:(NSNotification *)notifcation
 {
     id sender = [notifcation object];
-    assert([sender isKindOfClass:[VLCDialogTextField class]]);
-    VLCDialogTextField *field = sender;
-    extension_widget_t *widget = [field widget];
+    assert([sender isKindOfClass:[VLCDialogTextField class]] ||
+        [sender isKindOfClass:[VLCDialogSecureTextField class]]);
+    NSTextField *field = sender;
+    extension_widget_t *widget;
+
+    if ([sender isKindOfClass:[VLCDialogTextField class]])
+        widget = [(VLCDialogTextField*)field widget];
+    else if ([sender isKindOfClass:[VLCDialogSecureTextField class]])
+        widget = [(VLCDialogSecureTextField*)field widget];
+    else
+        return;
 
     vlc_mutex_lock(&widget->p_dialog->lock);
     free(widget->psz_text);
@@ -391,6 +410,8 @@ static void extensionDialogCallback(extension_dialog_t *p_ext_dialog,
 
         if (!control && !shouldDestroy) {
             control = createControlFromWidget(widget, self);
+            if (control == NULL)
+                msg_Err(getIntf(), "Failed to create control from widget!");
             updateControlFromWidget(control, widget, self);
             /* Ownership needs to be given-up, if ARC would remain with the
              * ownership, the object could be freed while it is still referenced

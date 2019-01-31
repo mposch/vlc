@@ -2,7 +2,6 @@
  * VLCVideoOutputProvider.m: MacOS X interface module
  *****************************************************************************
  * Copyright (C) 2012-2014 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Felix Paul Kühne <fkuehne -at- videolan -dot- org>
  *          David Fuhrmann <david dot fuhrmann at googlemail dot com>
@@ -28,6 +27,7 @@
 #import "VLCVideoOutputProvider.h"
 #import "VLCMain.h"
 #import "VLCMainWindow.h"
+#import "VLCDetachedVideoWindow.h"
 #import "VLCVoutView.h"
 
 #import "VLCVideoEffectsWindowController.h"
@@ -39,19 +39,10 @@
 #import "VLCPlaylist.h"
 #import "NSScreen+VLCAdditions.h"
 
-static atomic_bool b_intf_starting = ATOMIC_VAR_INIT(false);
-
-static int WindowControl(vout_window_t *, int i_query, va_list);
-
-int WindowOpen(vout_window_t *p_wnd, const vout_window_cfg_t *cfg)
+static int WindowEnable(vout_window_t *p_wnd, const vout_window_cfg_t *cfg)
 {
     @autoreleasepool {
         msg_Dbg(p_wnd, "Opening video window");
-
-        if (!atomic_load(&b_intf_starting)) {
-            msg_Err(p_wnd, "Cannot create vout as Mac OS X interface was not found");
-            return VLC_EGENERIC;
-        }
 
         NSRect proposedVideoViewPosition = NSMakeRect(cfg->x, cfg->y, cfg->width, cfg->height);
 
@@ -72,104 +63,105 @@ int WindowOpen(vout_window_t *p_wnd, const vout_window_cfg_t *cfg)
 
         msg_Dbg(getIntf(), "returning videoview with proposed position x=%i, y=%i, width=%i, height=%i", cfg->x, cfg->y, cfg->width, cfg->height);
         p_wnd->handle.nsobject = (void *)CFBridgingRetain(videoView);
-
-        p_wnd->type = VOUT_WINDOW_TYPE_NSOBJECT;
-        p_wnd->control = WindowControl;
     }
     if (cfg->is_fullscreen)
         vout_window_SetFullScreen(p_wnd, NULL);
     return VLC_SUCCESS;
 }
 
-static int WindowControl(vout_window_t *p_wnd, int i_query, va_list args)
+static void WindowDisable(vout_window_t *p_wnd)
 {
     @autoreleasepool {
         VLCVideoOutputProvider *voutProvider = [[VLCMain sharedInstance] voutProvider];
-        if (!voutProvider) {
-            return VLC_EGENERIC;
-        }
-
-        switch(i_query) {
-            case VOUT_WINDOW_SET_STATE:
-            {
-                unsigned i_state = va_arg(args, unsigned);
-
-                if (i_state & VOUT_WINDOW_STATE_BELOW)
-                {
-                    msg_Dbg(p_wnd, "Ignore change to VOUT_WINDOW_STATE_BELOW");
-                    goto out;
-                }
-
-                NSInteger i_cooca_level = NSNormalWindowLevel;
-                if (i_state & VOUT_WINDOW_STATE_ABOVE)
-                    i_cooca_level = NSStatusWindowLevel;
-
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    [voutProvider setWindowLevel:i_cooca_level forWindow:p_wnd];
-                });
-
-                break;
-            }
-            case VOUT_WINDOW_SET_SIZE:
-            {
-                unsigned int i_width  = va_arg(args, unsigned int);
-                unsigned int i_height = va_arg(args, unsigned int);
-
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    [voutProvider setNativeVideoSize:NSMakeSize(i_width, i_height)
-                                             forWindow:p_wnd];
-                });
-
-                break;
-            }
-            case VOUT_WINDOW_SET_FULLSCREEN:
-            case VOUT_WINDOW_UNSET_FULLSCREEN:
-            {
-                if (var_InheritBool(getIntf(), "video-wallpaper")) {
-                    msg_Dbg(p_wnd, "Ignore fullscreen event as video-wallpaper is on");
-                    goto out;
-                }
-
-                int i_full = i_query == VOUT_WINDOW_SET_FULLSCREEN;
-                BOOL b_animation = YES;
-
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    [voutProvider setFullscreen:i_full
-                                        forWindow:p_wnd
-                                    withAnimation:b_animation];
-                });
-
-                break;
-            }
-            case VOUT_WINDOW_HIDE_MOUSE:
-            {
-                [voutProvider hideMouseForWindow:p_wnd];
-                break;
-            }
-            default:
-            {
-                msg_Warn(p_wnd, "unsupported control query: %i", i_query );
-                return VLC_EGENERIC;
-            }
-        }
-
-        out:
-        return VLC_SUCCESS;
-    }
-}
-
-void WindowClose(vout_window_t *p_wnd)
-{
-    @autoreleasepool {
-        VLCVideoOutputProvider *voutProvider = [[VLCMain sharedInstance] voutProvider];
-        if (!voutProvider) {
-            return;
-        }
 
         dispatch_async(dispatch_get_main_queue(), ^{
             [voutProvider removeVoutForDisplay:[NSValue valueWithPointer:p_wnd]];
         });
     }
+}
+
+static void WindowResize(vout_window_t *p_wnd,
+                         unsigned i_width, unsigned i_height)
+{
+    @autoreleasepool {
+        VLCVideoOutputProvider *voutProvider = [[VLCMain sharedInstance] voutProvider];
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [voutProvider setNativeVideoSize:NSMakeSize(i_width, i_height)
+                          forWindow:p_wnd];
+        });
+    }
+}
+
+static void WindowSetState(vout_window_t *p_wnd, unsigned i_state)
+{
+    if (i_state & VOUT_WINDOW_STATE_BELOW)
+        msg_Dbg(p_wnd, "Ignore change to VOUT_WINDOW_STATE_BELOW");
+
+    @autoreleasepool {
+        VLCVideoOutputProvider *voutProvider = [[VLCMain sharedInstance] voutProvider];
+
+        NSInteger i_cooca_level = NSNormalWindowLevel;
+
+        if (i_state & VOUT_WINDOW_STATE_ABOVE)
+            i_cooca_level = NSStatusWindowLevel;
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [voutProvider setWindowLevel:i_cooca_level forWindow:p_wnd];
+        });
+    }
+}
+
+static const char windowed;
+
+static void WindowSetFullscreen(vout_window_t *p_wnd, const char *psz_id)
+{
+    if (var_InheritBool(getIntf(), "video-wallpaper")) {
+        msg_Dbg(p_wnd, "Ignore fullscreen event as video-wallpaper is on");
+        return;
+    }
+
+    int i_full = psz_id != &windowed;
+    BOOL b_animation = YES;
+
+    @autoreleasepool {
+        VLCVideoOutputProvider *voutProvider = [[VLCMain sharedInstance] voutProvider];
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [voutProvider setFullscreen:i_full
+                          forWindow:p_wnd
+                          withAnimation:b_animation];
+        });
+    }
+}
+
+static void WindowUnsetFullscreen(vout_window_t *wnd)
+{
+    WindowSetFullscreen(wnd, &windowed);
+}
+
+static atomic_bool b_intf_starting = ATOMIC_VAR_INIT(false);
+
+static const struct vout_window_operations ops = {
+    WindowEnable,
+    WindowDisable,
+    WindowResize,
+    NULL,
+    WindowSetState,
+    WindowUnsetFullscreen,
+    WindowSetFullscreen,
+};
+
+int WindowOpen(vout_window_t *p_wnd)
+{
+    if (!atomic_load(&b_intf_starting)) {
+        msg_Err(p_wnd, "Cannot create vout as Mac OS X interface was not found");
+        return VLC_EGENERIC;
+    }
+
+    p_wnd->type = VOUT_WINDOW_TYPE_NSOBJECT;
+    p_wnd->ops = &ops;
+    return VLC_SUCCESS;
 }
 
 @interface VLCVideoOutputProvider ()
@@ -210,25 +202,6 @@ void WindowClose(vout_window_t *p_wnd)
 
     if (var_InheritBool(getIntf(), "macosx-dim-keyboard")) {
         [keyboardBacklight switchLightsInstantly:YES];
-    }
-}
-
-#pragma mark -
-#pragma mark Mouse hiding
-
-- (void)hideMouseForWindow:(vout_window_t *)p_wnd
-{
-    VLCVideoWindowCommon *o_current_window = nil;
-    if (p_wnd)
-        o_current_window = [voutWindows objectForKey:[NSValue valueWithPointer:p_wnd]];
-    
-    if (o_current_window == nil)
-        return;
-    
-    if (NSPointInRect([o_current_window mouseLocationOutsideOfEventStream],
-                      [[o_current_window videoView] convertRect:[[o_current_window videoView] bounds]
-                                                         toView:nil])) {
-        [NSCursor setHiddenUntilMouseMoves:YES];
     }
 }
 

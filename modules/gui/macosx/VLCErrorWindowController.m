@@ -2,7 +2,6 @@
  * HelpWindowController.m
  *****************************************************************************
  * Copyright (C) 2017 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Derk-Jan Hartman <thedj@users.sourceforge.net>
  *          Felix Paul Kühne <fkuehne -at- videolan.org>
@@ -24,7 +23,7 @@
 
 #import "VLCErrorWindowController.h"
 
-#import "VLCStringUtility.h"
+#import "NSString+Helpers.h"
 
 
 @interface VLCErrorWindowController()

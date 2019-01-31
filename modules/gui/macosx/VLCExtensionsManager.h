@@ -2,7 +2,6 @@
  * VLCExtensionsManager.h: Extensions manager for Cocoa
  ****************************************************************************
  * Copyright (C) 2012 VideoLAN and authors
- * $Id$
  *
  * Authors: Brendon Justin <brendonjustin@gmail.com>
  *
@@ -27,12 +26,6 @@
 
 #import "VLCExtensionsDialogProvider.h"
 #import "VLCMain.h"
-
-#import <vlc_extensions.h>
-
-#import <Cocoa/Cocoa.h>
-
-@class VLCExtensionsDialogProvider;
 
 @interface VLCExtensionsManager : NSObject
 

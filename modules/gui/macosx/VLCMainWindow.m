@@ -2,7 +2,6 @@
  * VLCMainWindow.m: MacOS X interface module
  *****************************************************************************
  * Copyright (C) 2002-2013 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Felix Paul Kühne <fkuehne -at- videolan -dot- org>
  *          Jon Lech Johansen <jon-vl@nanocrew.net>
@@ -36,7 +35,7 @@
 #import "VLCPlaylist.h"
 #import "VLCSourceListItem.h"
 #import <math.h>
-#import <vlc_playlist.h>
+#import <vlc_playlist_legacy.h>
 #import <vlc_url.h>
 #import <vlc_strings.h>
 #import <vlc_services_discovery.h>
@@ -50,7 +49,7 @@
 #import "VLCMainWindowControlsBar.h"
 #import "VLCVoutView.h"
 #import "VLCVideoOutputProvider.h"
-
+#import "VLCDetachedVideoWindow.h"
 
 @interface VLCMainWindow() <PXSourceListDataSource, PXSourceListDelegate, NSOutlineViewDataSource, NSOutlineViewDelegate, NSWindowDelegate, NSAnimationDelegate, NSSplitViewDelegate>
 {
@@ -97,11 +96,11 @@ static const float f_min_window_height = 307.;
     o_key = [NSString stringWithFormat:@"%s", key];
     FREENULL(key);
 
-    unsigned int i_keyModifiers = [[VLCStringUtility sharedInstance] VLCModifiersToCocoa:o_key];
+    unsigned int i_keyModifiers = VLCModifiersToCocoa(o_key);
 
     NSString * characters = [o_event charactersIgnoringModifiers];
     if ([characters length] > 0) {
-        return [[characters lowercaseString] isEqualToString: [[VLCStringUtility sharedInstance] VLCKeyToString: o_key]] &&
+        return [[characters lowercaseString] isEqualToString: VLCKeyToString(o_key)] &&
                 (i_keyModifiers & NSShiftKeyMask)     == ([o_event modifierFlags] & NSShiftKeyMask) &&
                 (i_keyModifiers & NSControlKeyMask)   == ([o_event modifierFlags] & NSControlKeyMask) &&
                 (i_keyModifiers & NSAlternateKeyMask) == ([o_event modifierFlags] & NSAlternateKeyMask) &&
@@ -1184,22 +1183,6 @@ static const float f_min_window_height = 307.;
 
         b_podcastView_displayed = NO;
     }
-}
-
-@end
-
-@interface VLCDetachedVideoWindow ()
-@end
-
-@implementation VLCDetachedVideoWindow
-
-- (void)awakeFromNib
-{
-    // sets lion fullscreen behaviour
-    [super awakeFromNib];
-    [self setAcceptsMouseMovedEvents: YES];
-
-    [self setContentMinSize: NSMakeSize(363., f_min_video_height + [[self controlsBar] height])];
 }
 
 @end

@@ -2,7 +2,6 @@
  * VLCRendererItem.h: Wrapper class for vlc_renderer_item_t
  *****************************************************************************
  * Copyright (C) 2016 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Marvin Scholz <epirat07 at gmail dot com>
  *
@@ -24,7 +23,7 @@
 #import <Foundation/Foundation.h>
 
 #include <vlc_common.h>
-#include <vlc_playlist.h>
+#include <vlc_playlist_legacy.h>
 
 /**
  \c VLCRendererItem is a simple wrapper class for libvlc’s

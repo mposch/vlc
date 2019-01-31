@@ -2,7 +2,6 @@
  * VLCUIWidgets.m: Widgets for VLC's extensions dialogs for Mac OS X
  *****************************************************************************
  * Copyright (C) 2009-2015 the VideoLAN team and authors
- * $Id$
  *
  * Authors: Pierre d'Herbemont <pdherbemont # videolan dot>,
  *          Brendon Justin <brendonjustin@gmail.com>
@@ -40,6 +39,12 @@
 @implementation VLCDialogTextField
 
 @end
+
+
+@implementation VLCDialogSecureTextField
+
+@end
+
 
 @implementation VLCDialogLabel
 - (void)resetCursorRects {

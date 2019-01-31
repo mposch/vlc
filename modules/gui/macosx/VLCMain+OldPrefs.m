@@ -2,7 +2,6 @@
  * intf-prefs.m
  *****************************************************************************
  * Copyright (C) 2001-2015 VLC authors and VideoLAN
- * $Id$
  *
  * Authors: Pierre d'Herbemont <pdherbemont # videolan org>
  *          Felix Paul Kühne <fkuehne at videolan dot org>
@@ -26,6 +25,7 @@
 #import "VLCMain+OldPrefs.h"
 #import "VLCCoreInteraction.h"
 #import "VLCSimplePrefsController.h"
+#import "NSString+Helpers.h"
 
 #include <unistd.h> /* execl() */
 
@@ -46,14 +46,15 @@ static const int kCurrentPreferencesVersion = 4;
 
 - (void)resetAndReinitializeUserDefaults
 {
+    NSUserDefaults *standardUserDefaults = [NSUserDefaults standardUserDefaults];
     // note that [NSUserDefaults resetStandardUserDefaults] will NOT correctly reset to the defaults
 
     NSString *appDomain = [[NSBundle mainBundle] bundleIdentifier];
-    [[NSUserDefaults standardUserDefaults] removePersistentDomainForName:appDomain];
+    [standardUserDefaults removePersistentDomainForName:appDomain];
 
     // set correct version to avoid question about outdated config
-    [[NSUserDefaults standardUserDefaults] setInteger:kCurrentPreferencesVersion forKey:kVLCPreferencesVersion];
-    [[NSUserDefaults standardUserDefaults] synchronize];
+    [standardUserDefaults setInteger:kCurrentPreferencesVersion forKey:kVLCPreferencesVersion];
+    [standardUserDefaults synchronize];
 }
 
 - (void)migrateOldPreferences
@@ -74,7 +75,7 @@ static const int kCurrentPreferencesVersion = 4;
         [defaults setInteger:kCurrentPreferencesVersion forKey:kVLCPreferencesVersion];
         [defaults synchronize];
 
-        if (![[VLCCoreInteraction sharedInstance] fixIntfSettings])
+        if (!fixIntfSettings())
             return;
         else
             config_SaveConfigFile(getIntf()); // we need to do manually, since we won't quit libvlc cleanly
@@ -142,7 +143,7 @@ static const int kCurrentPreferencesVersion = 4;
     if (fork() != 0) {
         exit(0);
     }
-    execl(path, path, NULL);
+    execl(path, path, (char *)NULL);
 }
 
 @end
